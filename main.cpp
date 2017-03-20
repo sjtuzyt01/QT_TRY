@@ -39,6 +39,10 @@ int imgIndex;
 //----------SQL USAGE GLOBALS-----------
 QSqlDatabase db;
 int posses[25]={0};
+int lastPosition_x[30];
+int lastPosition_y[30];
+int run[30];
+int hold[30];
 int now_posses=-1,last_posses=-1;
 int second_posses = -1;
 int Distance;
@@ -425,7 +429,7 @@ void SQL_WholeChart_init()
     }
     SQLString="CREATE TABLE IF NOT EXISTS position (FRAME INTEGER NOT NULL, X1 FLOAT, Y1 FLOAT, X2 FLOAT, Y2 FLOAT, X3 FLOAT, Y3 FLOAT, X4 FLOAT, \
             Y4 FLOAT, X5 FLOAT, Y5 FLOAT, X6 FLOAT, Y6 FLOAT, X7 FLOAT, Y7  FLOAT, X8 FLOAT, Y8 FLOAT, X9 FLOAT, Y9 FLOAT, X10 FLOAT, Y10 FLOAT, X11 FLOAT, Y11 FLOAT, X12 FLOAT, Y12 FLOAT,X13 FLOAT, Y13 FLOAT, X14 FLOAT,Y14 FLOAT,X15 FLOAT,Y15 FLOAT,X16 FLOAT,Y16 FLOAT,X17 FLOAT,Y17 FLOAT, \
-                        X18 FLOAT, Y18 FLOAT,X19 FLOAT, Y19 FLOAT, X20 FLOAT,Y20 FLOAT,X21 FLOAT,Y21 FLOAT,X22 FLOAT,Y22 FLOAT,X23 FLOAT,Y23 FLOAT,X24 FLOAT,Y24 FLOAT,X25 FLOAT,Y25 FLOAT,X26 FLOAT,Y26 FLOAT,X27 FLOAT,Y27 FLOAT,X28 FLOAT,Y28 FLOAT,X29 FLOAT,Y29 FLOAT,X30 FLOAT,Y30 FLOAT,TAG INTEGER NOT NULL, VIDEO INTEGER NOT NULL, PRIMARY KEY(TAG,VIDEO,FRAME));";
+                        X18 FLOAT, Y18 FLOAT,X19 FLOAT, Y19 FLOAT, X20 FLOAT,Y20 FLOAT,X21 FLOAT,Y21 FLOAT,X22 FLOAT,Y22 FLOAT,X23 FLOAT,Y23 FLOAT,X24 FLOAT,Y24 FLOAT,X25 FLOAT,Y25 FLOAT,X26 FLOAT,Y26 FLOAT,X27 FLOAT,Y27 FLOAT,X28 FLOAT,Y28 FLOAT,X29 FLOAT,Y29 FLOAT,X30 FLOAT,Y30 FLOAT,HOLD INTEGER,TAG INTEGER NOT NULL, VIDEO INTEGER NOT NULL, PRIMARY KEY(TAG,VIDEO,FRAME));";
     if(query.exec(SQLString))
     {
         cout<<"create table 1 success"<<endl;
@@ -539,7 +543,7 @@ void SQL_init(string FileName)
     }
     SQLString="CREATE TABLE IF NOT EXISTS "+FileNameString+"_position (FRAME INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, X1 FLOAT, Y1 FLOAT, X2 FLOAT, Y2 FLOAT, X3 FLOAT, Y3 FLOAT, X4 FLOAT, \
             Y4 FLOAT, X5 FLOAT, Y5 FLOAT, X6 FLOAT, Y6 FLOAT, X7 FLOAT, Y7  FLOAT, X8 FLOAT, Y8 FLOAT, X9 FLOAT, Y9 FLOAT, X10 FLOAT, Y10 FLOAT, X11 FLOAT, Y11 FLOAT, X12 FLOAT, Y12 FLOAT,X13 FLOAT, Y13 FLOAT, X14 FLOAT,Y14 FLOAT,X15 FLOAT,Y15 FLOAT,X16 FLOAT,Y16 FLOAT,X17 FLOAT,Y17 FLOAT, \
-                        X18 FLOAT, Y18 FLOAT,X19 FLOAT, Y19 FLOAT, X20 FLOAT,Y20 FLOAT,X21 FLOAT,Y21 FLOAT,X22 FLOAT,Y22 FLOAT,X23 FLOAT,Y23 FLOAT,X24 FLOAT,Y24 FLOAT,X25 FLOAT,Y25 FLOAT,X26 FLOAT,Y26 FLOAT,X27 FLOAT,Y27 FLOAT,X28 FLOAT,Y28 FLOAT,X29 FLOAT,Y29 FLOAT,X30 FLOAT,Y30 FLOAT);";
+                        X18 FLOAT, Y18 FLOAT,X19 FLOAT, Y19 FLOAT, X20 FLOAT,Y20 FLOAT,X21 FLOAT,Y21 FLOAT,X22 FLOAT,Y22 FLOAT,X23 FLOAT,Y23 FLOAT,X24 FLOAT,Y24 FLOAT,X25 FLOAT,Y25 FLOAT,X26 FLOAT,Y26 FLOAT,X27 FLOAT,Y27 FLOAT,X28 FLOAT,Y28 FLOAT,X29 FLOAT,Y29 FLOAT,X30 FLOAT,Y30 FLOAT,HOLD INTEGER,);";
     if(query.exec(SQLString))
     {
         cout<<"create table 1 success"<<endl;
@@ -593,12 +597,35 @@ void SQL_Process(string FileName)
     QString ParamString;
     stringstream strStream;
     QString FileNameString=QString::fromStdString(FileName);
+	for (int i = 0; i < 30; i++) {
+		hold[i] = 0;
+		lastPosition_x[i] = 0;
+		lastPosition_y[i] = 0;
+	}
 
     for(int i=0;i<imgIndex;i++)
     {
         last_posses=now_posses;
         int min=100000;
 		int second_min = 2000000;
+		for (int j = 1; j<23; j++)
+		{
+			if (TrackingStatus[j] != REGULAR)continue;
+			Distance = (players[i][j].y_trans - players[i][0].y_trans)*(players[i][j].y_trans - players[i][0].y_trans) +
+				(players[i][j].x_trans - players[i][0].x_trans)*(players[i][j].x_trans - players[i][0].x_trans);
+
+			if (Distance<min)
+			{
+				min = Distance;
+				now_posses = j;
+			}
+			if (Distance<second_min && Distance>min)
+			{
+				second_min = Distance;
+				second_posses = j;
+			}
+		}
+		hold[now_posses]++;
         SQLString="insert into "+FileNameString+"_position values(";
         strStream.str("");
         strStream<<i+1;
@@ -612,7 +639,7 @@ void SQL_Process(string FileName)
             strStream<<","<<0;
             strStream<<","<<0;
         }
-        strStream<<");";
+        strStream<<","<<now_posses<<");";
         QString ParamStr=QString::fromStdString(strStream.str());
         SQLString+=ParamStr;
        if(query.exec(SQLString))
@@ -627,24 +654,6 @@ void SQL_Process(string FileName)
            
        }
         //DISTANCE CHECK
-	   
-        for(int j=1;j<23;j++)
-        {
-            if(TrackingStatus[j]!=REGULAR)continue;
-            Distance=(players[i][j].y_trans-players[i][0].y_trans)*(players[i][j].y_trans-players[i][0].y_trans)+
-                    (players[i][j].x_trans-players[i][0].x_trans)*(players[i][j].x_trans-players[i][0].x_trans);
-			
-            if(Distance<min)
-            {
-                min=Distance;
-                now_posses=j;
-            }
-			if (Distance<second_min && Distance>min)
-			{
-				second_min = Distance;
-				second_posses = j;
-			}
-        }
         Player_distance = (players[i][now_posses].y_trans - players[i][second_posses].y_trans)*(players[i][now_posses].y_trans - players[i][second_posses].y_trans) +
 			(players[i][now_posses].x_trans - players[i][second_posses].x_trans)*(players[i][now_posses].x_trans - players[i][second_posses].x_trans);
         //POSSESSION CHECK
@@ -739,24 +748,8 @@ void SQL_Process(string FileName)
 		else {
 			SQLString = "insert into " + FileNameString + "_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
 			strStream.str("");
-			strStream << event++;
-			strStream << ",";
-			strStream << 4;
-			strStream << ",";
-			strStream << now_posses;
-			strStream << ",";
-			strStream << players[i][now_posses].y_trans;
-			strStream << ",";
-			strStream << players[i][now_posses].x_trans;
-			strStream << ",";
-			strStream << -1;
-			strStream << ",";
-			strStream << -1;
-			strStream << ",";
-			strStream << -1;
-			strStream << ",";
-			strStream << i + 1;
-			strStream << ",";
+			strStream << event++ << "," << 4 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+			strStream << "," << -1 << "," << -1 << "," << -1 << "," << i + 1 << ",";
 			if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 				against_flag = 1;
 			}
@@ -799,25 +792,8 @@ void SQL_Process(string FileName)
 				if (Player_distance < 10000) {
 
 					SQLString = "insert into " + FileNameString + "_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
-					strStream.str("");
-					strStream << event++;
-					strStream << ",";
-					strStream << 1;
-					strStream << ",";
-					strStream << last_posses;
-					strStream << ",";
-					strStream << players[i][last_posses].y_trans;
-					strStream << ",";
-					strStream << players[i][last_posses].x_trans;
-					strStream << ",";
-					strStream << now_posses;
-					strStream << ",";
-					strStream << players[i][now_posses].y_trans;
-					strStream << ",";
-					strStream << players[i][now_posses].x_trans;
-					strStream << ",";
-					strStream << i + 1;
-					strStream << ",";
+					strStream << event++ << "," << 1 << "," << last_posses << "," << players[i][last_posses].y_trans << "," << players[i][last_posses].x_trans;
+					strStream << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].y_trans << "," << i + 1 << ",";
 					if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 						against_flag = 1;
 					}
@@ -855,25 +831,8 @@ void SQL_Process(string FileName)
 				}
 				else {
 					SQLString = "insert into " + FileNameString + "_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
-					strStream.str("");
-					strStream << event++;
-					strStream << ",";
-					strStream << 2;
-					strStream << ",";
-					strStream << last_posses;
-					strStream << ",";
-					strStream << players[i][last_posses].y_trans;
-					strStream << ",";
-					strStream << players[i][last_posses].x_trans;
-					strStream << ",";
-					strStream << now_posses;
-					strStream << ",";
-					strStream << players[i][now_posses].y_trans;
-					strStream << ",";
-					strStream << players[i][now_posses].x_trans;
-					strStream << ",";
-					strStream << i + 1;
-					strStream << ",";
+					strStream << event++ << "," << 2 << "," << last_posses << "," << players[i][last_posses].y_trans << "," << players[i][last_posses].x_trans;
+					strStream << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].y_trans << "," << i + 1 << ",";
 					if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 						against_flag = 1;
 					}
@@ -911,25 +870,8 @@ void SQL_Process(string FileName)
 					}
 				}
 				SQLString = "insert into " + FileNameString + "_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
-				strStream.str("");
-				strStream << event++;
-				strStream << ",";
-				strStream << 3;
-				strStream << ",";
-				strStream << now_posses;
-				strStream << ",";
-				strStream << players[i][now_posses].y_trans;
-				strStream << ",";
-				strStream << players[i][now_posses].x_trans;
-				strStream << ",";
-				strStream << last_posses;
-				strStream << ",";
-				strStream << players[i][last_posses].y_trans;
-				strStream << ",";
-				strStream << players[i][last_posses].x_trans;
-				strStream << ",";
-				strStream << i + 1;
-				strStream << ",";
+				strStream << event++ << "," << 3 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+				strStream << "," << last_posses << "," << players[i][last_posses].y_trans << "," << players[i][last_posses].y_trans << "," << i + 1 << ",";
 				if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 					against_flag = 1;
 				}
@@ -968,25 +910,8 @@ void SQL_Process(string FileName)
 			else {
 				//STEAL
 				SQLString = "insert into " + FileNameString + "_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
-				strStream.str("");
-				strStream << event++;
-				strStream << ",";
-				strStream << 10;
-				strStream << ",";
-				strStream << now_posses;
-				strStream << ",";
-				strStream << players[i][now_posses].y_trans;
-				strStream << ",";
-				strStream << players[i][now_posses].x_trans;
-				strStream << ",";
-				strStream << last_posses;
-				strStream << ",";
-				strStream << players[i][last_posses].y_trans;
-				strStream << ",";
-				strStream << players[i][last_posses].x_trans;
-				strStream << ",";
-				strStream << i + 1;
-				strStream << ",";
+				strStream << event++ << "," << 10 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+				strStream << "," << last_posses << "," << players[i][last_posses].y_trans << "," << players[i][last_posses].y_trans << "," << i + 1 << ",";
 				if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 					against_flag = 1;
 				}
@@ -1063,24 +988,8 @@ void SQL_Process(string FileName)
                 //Side Out
                 SQLString="insert into "+FileNameString+"_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
                 strStream.str("");
-                strStream<<event++;
-                strStream<<",";
-                strStream<<10;
-                strStream<<",";
-                strStream<<now_posses;
-                strStream<<",";
-                strStream<<players[i][now_posses].y_trans;
-                strStream<<",";
-                strStream<<players[i][now_posses].x_trans;
-                strStream<<",";
-                strStream<<-1;
-                strStream<<",";
-                strStream<<-1;
-                strStream<<",";
-                strStream<<-1;
-                strStream<<",";
-                strStream<<i+1;
-                strStream<<",";
+				strStream << event++ << "," << 10 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+				strStream << "," << -1 << "," << -1 << "," << -1 << "," << i + 1 << ",";
 				if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 					against_flag = 1;
 				}
@@ -1128,24 +1037,8 @@ void SQL_Process(string FileName)
                     //GOAL
                     SQLString="insert into "+FileNameString+"_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
                     strStream.str("");
-                    strStream<<event++;
-                    strStream<<",";
-                    strStream<<7;
-                    strStream<<",";
-                    strStream<<now_posses;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].y_trans;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].x_trans;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<i+1;
-                    strStream<<",";
+					strStream << event++ << "," << 7 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+					strStream << "," << -1 << "," << -1 << "," << -1 << "," << i + 1 << ",";
 					if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 						against_flag = 1;
 					}
@@ -1186,24 +1079,8 @@ void SQL_Process(string FileName)
                     //AREA OUT
                     SQLString="insert into "+FileNameString+"_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
                     strStream.str("");
-                    strStream<<event++;
-                    strStream<<",";
-                    strStream<<7;
-                    strStream<<",";
-                    strStream<<now_posses;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].y_trans;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].x_trans;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<i+1;
-                    strStream<<",";
+					strStream << event++ << "," << 7 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+					strStream << "," << -1 << "," << -1 << "," << -1 << "," << i + 1 << ",";
 					if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 						against_flag = 1;
 					}
@@ -1241,24 +1118,8 @@ void SQL_Process(string FileName)
                     //SIDE OUT AGAIN
                     SQLString="insert into "+FileNameString+"_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
                     strStream.str("");
-                    strStream<<event++;
-                    strStream<<",";
-                    strStream<<10;
-                    strStream<<",";
-                    strStream<<now_posses;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].y_trans;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].x_trans;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<i+1;
-                    strStream<<",";
+					strStream << event++ << "," << 10 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+					strStream << "," << -1 << "," << -1 << "," << -1 << "," << i + 1 << ",";
 					if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 						against_flag = 1;
 					}
@@ -1298,25 +1159,8 @@ void SQL_Process(string FileName)
                 {
                     //NORMAL BASELINE OUT
                     SQLString="insert into "+FileNameString+"_PlayerEvent (ID,TYPE,PLAYER1,X1,Y1,PLAYER2,X2,Y2,FRAME,AGAINST,SUCCESS)values(";
-                    strStream.str("");
-                    strStream<<event++;
-                    strStream<<",";
-                    strStream<<10;
-                    strStream<<",";
-                    strStream<<now_posses;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].y_trans;
-                    strStream<<",";
-                    strStream<<players[i][now_posses].x_trans;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<-1;
-                    strStream<<",";
-                    strStream<<i+1;
-                    strStream<<",";
+					strStream << event++ << "," << 10 << "," << now_posses << "," << players[i][now_posses].y_trans << "," << players[i][now_posses].x_trans;
+					strStream << "," << -1 << "," << -1 << "," << -1 << "," << i + 1 << ",";
 					if (abs(players[i][now_posses].type - players[i][second_posses].type) > 1 && Player_distance < 100) {
 						against_flag = 1;
 					}
@@ -1361,6 +1205,51 @@ void SQL_Process(string FileName)
             //Back into field
             out_flag=-1;
         }
+		if (i) {
+			for (int j = 1; j < 23; j++)
+				run[i] = (int)sqrt((players[i][j].y_trans - lastPosition_x[j])*(players[i][j].y_trans - lastPosition_x[j]) +
+				(players[i][j].x_trans - lastPosition_y[j])*(players[i][j].x_trans - lastPosition_y[j]));
+			for (int j = 1; j < 23; j++) {
+				SQLString = "update count set ";
+				strStream.str("");
+				strStream << "P" << j << "= P" << j << "+" << run[j] <<  "where type =" << 33 << ";";
+				QString ParamStr = QString::fromStdString(strStream.str());
+				SQLString += ParamStr;
+				cout << SQLString.toStdString() << endl;
+				if (query.exec(SQLString))
+				{
+					cout << "PASSING INPUT " << last_posses << " " << now_posses << endl;
+				}
+				else
+				{
+					cout << "PASSING INPUT FAILED" << endl;
+					db.close();
+					exit(0);
+				}
+
+				SQLString = "update count set ";
+				strStream.str("");
+				strStream << "P" << j << "=" << (int)hold[j]/(imgIndex+1)*100 << "where type =" << 34 << ";";
+				QString ParamStr = QString::fromStdString(strStream.str());
+				SQLString += ParamStr;
+				cout << SQLString.toStdString() << endl;
+				if (query.exec(SQLString))
+				{
+					cout << "PASSING INPUT " << last_posses << " " << now_posses << endl;
+				}
+				else
+				{
+					cout << "PASSING INPUT FAILED" << endl;
+					db.close();
+					exit(0);
+				}
+			}
+		}
+		for (int j = 1; j < 23; j++) {
+			lastPosition_x[j] = players[i][j].y_trans;
+			lastPosition_y[j] = players[i][j].x_trans;
+		}
+
 
     }
 }
