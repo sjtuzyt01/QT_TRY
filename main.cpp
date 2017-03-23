@@ -53,6 +53,7 @@ int event=1;
 int tranflag=0;
 int against_flag = 0;
 int success_flag = 0;
+int currentFrame = 1;
 
 SYSTEMTIME operator-(const SYSTEMTIME& pSr, const SYSTEMTIME& pSl)
 {
@@ -608,6 +609,7 @@ void SQL_Process(string FileName)
         last_posses=now_posses;
         int min=100000;
 		int second_min = 2000000;
+		currentFrame++;
 		for (int j = 1; j<23; j++)
 		{
 			if (TrackingStatus[j] != REGULAR)continue;
@@ -1229,7 +1231,7 @@ void SQL_Process(string FileName)
 
 				SQLString = "update count set ";
 				strStream.str("");
-				strStream << "P" << j << "=" << (int)hold[j]/(imgIndex+1)*100 << "where type =" << 34 << ";";
+				strStream << "P" << j << "=" << (int)(hold[j]/currentFrame*100) << "where type =" << 34 << ";";
 				QString ParamStr = QString::fromStdString(strStream.str());
 				SQLString += ParamStr;
 				cout << SQLString.toStdString() << endl;
